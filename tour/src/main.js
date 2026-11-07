@@ -15,7 +15,7 @@ const places={
 const placeOrder=Object.keys(places);
 let renderer,world,ready=false,mode='welcome',paused=false,shotPaused=false;
 let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, sensitivity=1,quality='balanced';
-let tourTime=0,tourDone=false,elapsed=0,lastTime=performance.now(),activePlace='plaza',transitionId=0,spectator=false;
+let tourTime=0,tourDone=false,elapsed=0,lastTime=performance.now(),activePlace='plaza',transitionId=0,spectator=false,spectatorSpeed=18;
 let yaw=0,pitch=0,targetYaw=0,targetPitch=0,drag=null,toastTimer;
 const keys=new Set(),touchMove=new Set(),velocity=new THREE.Vector2();
 const scene=new THREE.Scene();
@@ -107,6 +107,7 @@ addEventListener('keydown',e=>{
   if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','q','e','shift',' '].includes(k)){e.preventDefault();takeOver();keys.add(k);}
 });
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+addEventListener('wheel',e=>{if(!spectator||!ready||paused)return;e.preventDefault();spectatorSpeed=THREE.MathUtils.clamp(spectatorSpeed-Math.sign(e.deltaY)*4,4,60);announce(`Spectator speed: ${Math.round(spectatorSpeed)} units per second`);},{passive:false});
 addEventListener('blur',clearInput);
 document.addEventListener('visibilitychange',()=>{clearInput();if(document.hidden&&mode!=='welcome'){paused=true;syncUI();}audio.pause(document.hidden||paused);});
 canvas.addEventListener('pointerdown',e=>{if(mode==='welcome'||!ready||e.button!==0)return;takeOver();drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);canvas.focus({preventScroll:true});});
@@ -124,7 +125,7 @@ function walk(dt){
   const forward=Number(keys.has('w')||keys.has('arrowup')||touchMove.has('forward'))-Number(keys.has('s')||keys.has('arrowdown')||touchMove.has('back'));
   const side=Number(keys.has('d')||keys.has('arrowright')||touchMove.has('right'))-Number(keys.has('a')||keys.has('arrowleft')||touchMove.has('left'));
   targetYaw+=(Number(keys.has('q'))-Number(keys.has('e')))*dt*1.25;
-  const length=Math.hypot(forward,side)||1,speed=spectator?18:(keys.has('shift')?7.1:4.25);
+  const length=Math.hypot(forward,side)||1,speed=spectator?spectatorSpeed:(keys.has('shift')?7.1:4.25);
   const vx=(-Math.sin(yaw)*forward+Math.cos(yaw)*side)/length*speed,vz=(-Math.cos(yaw)*forward-Math.sin(yaw)*side)/length*speed;
   velocity.x=THREE.MathUtils.damp(velocity.x,vx,12,dt);velocity.y=THREE.MathUtils.damp(velocity.y,vz,12,dt);
   const steps=Math.max(1,Math.ceil(dt/.016));for(let i=0;i<steps;i++){const x=camera.position.x+velocity.x*dt/steps,z=camera.position.z+velocity.y*dt/steps;if(canMove(x,camera.position.z))camera.position.x=x;else velocity.x=0;if(canMove(camera.position.x,z))camera.position.z=z;else velocity.y=0;}
