@@ -15,6 +15,12 @@ The rebuilt campus follows the physical model: towers at one end, the crescent a
 
 Night audio shuts down completely on victory, defeat, quit or exit. Pause, mute and leaving the game window suspend its audio engine, including during demos. Continue or Retry restores sound only for active gameplay. See `artifacts/audio-shutdown-evidence.md` for the focused checks and rollout status. Refresh an already-open game tab after an update to load the latest version.
 
+## Spectator view
+
+Added for this contribution: the day tour now has a spectator view, so a first-time visitor can look over the whole campus instead of walking every route on foot. Press `V` inside the day tour to toggle it. While it is on, `W A S D` fly, `Space` rises, `Shift` descends, and dragging looks further up and down than walking allows. Building collisions and the campus boundary are ignored, and the flying speed is fixed at 18 units per second. Press `V` again to drop back to walking at eye height.
+
+Known limits: day tour only, Haunted night is unchanged; keyboard only, with no touch button; the flying speed is not adjustable.
+
 ## Run locally
 
 For a fresh checkout, install Node 22.12 or newer, open a terminal in the repository root, then run:

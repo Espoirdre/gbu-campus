@@ -15,7 +15,7 @@ const places={
 const placeOrder=Object.keys(places);
 let renderer,world,ready=false,mode='welcome',paused=false,shotPaused=false;
 let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, sensitivity=1,quality='balanced';
-let tourTime=0,tourDone=false,elapsed=0,lastTime=performance.now(),activePlace='plaza',transitionId=0;
+let tourTime=0,tourDone=false,elapsed=0,lastTime=performance.now(),activePlace='plaza',transitionId=0,spectator=false;
 let yaw=0,pitch=0,targetYaw=0,targetPitch=0,drag=null,toastTimer;
 const keys=new Set(),touchMove=new Set(),velocity=new THREE.Vector2();
 const scene=new THREE.Scene();
@@ -103,13 +103,14 @@ addEventListener('keydown',e=>{
   if(dialogs.some(d=>d.open))return;if(e.target instanceof HTMLInputElement||e.target instanceof HTMLSelectElement)return;
   const k=e.key.toLowerCase();if(k==='escape'){e.preventDefault();togglePause();return;}if(k==='h'){openDialog('help-dialog');return;}
   if(!ready||mode==='welcome')return;
-  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','q','e','shift'].includes(k)){e.preventDefault();takeOver();keys.add(k);}
+  if(k==='v'){e.preventDefault();spectator=!spectator;if(spectator&&mode==='tour'){mode='walk';tourDone=false;syncUI();}clearInput();announce(spectator?'Spectator view on. W A S D to fly, Space up, Shift down. Press V to land.':'Spectator view off. Back on foot.');return;}
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','q','e','shift',' '].includes(k)){e.preventDefault();takeOver();keys.add(k);}
 });
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 addEventListener('blur',clearInput);
 document.addEventListener('visibilitychange',()=>{clearInput();if(document.hidden&&mode!=='welcome'){paused=true;syncUI();}audio.pause(document.hidden||paused);});
 canvas.addEventListener('pointerdown',e=>{if(mode==='welcome'||!ready||e.button!==0)return;takeOver();drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);canvas.focus({preventScroll:true});});
-canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;targetYaw-=(e.clientX-drag.x)*.003*sensitivity;targetPitch-=(e.clientY-drag.y)*.0025*sensitivity;targetPitch=THREE.MathUtils.clamp(targetPitch,-.65,.9);drag.x=e.clientX;drag.y=e.clientY;});
+canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;targetYaw-=(e.clientX-drag.x)*.003*sensitivity;targetPitch-=(e.clientY-drag.y)*.0025*sensitivity;targetPitch=THREE.MathUtils.clamp(targetPitch,spectator?-1.5:-.65,spectator?1.5:.9);drag.x=e.clientX;drag.y=e.clientY;});
 for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,()=>drag=null);
 for(const b of document.querySelectorAll('[data-move]')){
   b.addEventListener('pointerdown',e=>{e.preventDefault();takeOver();b.setPointerCapture(e.pointerId);touchMove.add(b.dataset.move);});
@@ -118,16 +119,16 @@ for(const b of document.querySelectorAll('[data-move]')){
 
 function applyQuality(){if(!renderer)return;renderer.setPixelRatio(Math.min(devicePixelRatio,quality==='high'?1.5:1));renderer.setSize(innerWidth,innerHeight);sun.shadow.mapSize.setScalar(quality==='high'?2048:1024);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}renderer.shadowMap.needsUpdate=true;}
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(renderer)renderer.setSize(innerWidth,innerHeight);if(mode==='welcome')overview();syncUI();});
-function canMove(x,z){const b=world.bounds;return x>b.minX+.4&&x<b.maxX-.4&&z>b.minZ+.4&&z<b.maxZ-.4&&!world.colliders.some(c=>x>c.minX-.34&&x<c.maxX+.34&&z>c.minZ-.34&&z<c.maxZ+.34);}
+function canMove(x,z){if(spectator)return true;const b=world.bounds;return x>b.minX+.4&&x<b.maxX-.4&&z>b.minZ+.4&&z<b.maxZ-.4&&!world.colliders.some(c=>x>c.minX-.34&&x<c.maxX+.34&&z>c.minZ-.34&&z<c.maxZ+.34);}
 function walk(dt){
   const forward=Number(keys.has('w')||keys.has('arrowup')||touchMove.has('forward'))-Number(keys.has('s')||keys.has('arrowdown')||touchMove.has('back'));
   const side=Number(keys.has('d')||keys.has('arrowright')||touchMove.has('right'))-Number(keys.has('a')||keys.has('arrowleft')||touchMove.has('left'));
   targetYaw+=(Number(keys.has('q'))-Number(keys.has('e')))*dt*1.25;
-  const length=Math.hypot(forward,side)||1,speed=keys.has('shift')?7.1:4.25;
+  const length=Math.hypot(forward,side)||1,speed=spectator?18:(keys.has('shift')?7.1:4.25);
   const vx=(-Math.sin(yaw)*forward+Math.cos(yaw)*side)/length*speed,vz=(-Math.cos(yaw)*forward-Math.sin(yaw)*side)/length*speed;
   velocity.x=THREE.MathUtils.damp(velocity.x,vx,12,dt);velocity.y=THREE.MathUtils.damp(velocity.y,vz,12,dt);
   const steps=Math.max(1,Math.ceil(dt/.016));for(let i=0;i<steps;i++){const x=camera.position.x+velocity.x*dt/steps,z=camera.position.z+velocity.y*dt/steps;if(canMove(x,camera.position.z))camera.position.x=x;else velocity.x=0;if(canMove(camera.position.x,z))camera.position.z=z;else velocity.y=0;}
-  camera.position.y=1.72;
+  if(spectator){const rise=Number(keys.has(' '))-Number(keys.has('shift'));camera.position.y=THREE.MathUtils.clamp(camera.position.y+rise*dt*16,1.2,180);}else camera.position.y=1.72;
   yaw=THREE.MathUtils.damp(yaw,targetYaw,22,dt);pitch=THREE.MathUtils.damp(pitch,targetPitch,22,dt);camera.rotation.set(pitch,yaw,0,'YXZ');
 }
 // Authored stop-to-stop route follows the same promenade and open entrances as walking.
